@@ -1,0 +1,20 @@
+# AI Agent Guidelines for This Project
+
+- **Architecture**: Streamlit UI in [app.py](app.py) consumes a FastAPI dummy backend in [backend.py](backend.py). Data flow is pull-only: UI polls `/api/latest/{node_id}`, `/api/history/{node_id}`, `/api/predictive/{node_id}`; no WebSockets.
+- **Running locally**: Start backend with `uvicorn backend:app --reload --port 8000`; start UI with `streamlit run app.py`. Backend URL defaults to `http://127.0.0.1:8000`; change `BACKEND_URL` in [app.py](app.py) if accessing from another device.
+- **Auth model (UI only)**: Simple in-memory users in [app.py](app.py): admin/admin123 (Admin), operator/op123 (Operator), viewer/view123 (Viewer). Session state `auth` gates all content and role controls tuning vs read-only.
+- **Session state usage**: `alert_log` (last 50 status changes), `last_status_by_node` (per-node status dedup), `risk_history` (per-session risk scores). Preserve these when extending UI; logging depends on status changes not raw samples.
+- **Live monitoring UX**: Metrics drawn from `/api/latest/{node_id}`; history charts from `/api/history/{node_id}`. Auto-refresh uses `streamlit_autorefresh` driven by sidebar slider/toggle. Keep new UI additions resilient to `df` being empty.
+- **Alert banner logic**: `status_style` and `show_alert_banner` map leak statuses to emojis/colors; only three states are expected: NORMAL, SUSPECTED, LEAK DETECTED. Avoid introducing new status strings unless backend aligned.
+- **Predictive tab**: Calls `/api/predictive/{node_id}` with `short_window`/`long_window`; only Admin/Operator can tune windows, Viewer is read-only defaults (30/120). Risk history is session-local and truncated to 200.
+- **Backend simulation**: `simulate_sensor_reading()` crafts synthetic signals with occasional anomalies; push_history trims to 300 points. Leak status is rule-based on pressure/flow/vibration/turbidity thresholds; estimated node/distance are random within 6 nodes.
+- **Predictive scoring heuristics**: `compute_predictive_risk()` combines slopes, volatility, and pressure/flow stability to produce risk_score 0-100, risk_level LOW/MEDIUM/HIGH, eta_hours estimate, dominant_factor, likely_segment string. When adding features, keep reasons explanatory and bounded.
+- **Data fields expected by UI**: `pressure_bar`, `flow_lpm`, `vibration`, `turbidity_ntu`, `tds_ppm`, `leak_status`, `leak_score`, `estimated_node`, `estimated_distance_m`, `node_spacing_m`, `timestamp`. Breaking these names will crash metrics/plots.
+- **History endpoints**: `/api/latest/{node_id}` appends to HISTORY; `/api/history/{node_id}` filters by node_id only (no paging). If you add persistence, maintain ordering and recent-first expectation in UI sorting.
+- **CORS**: Backend allows all origins via CORSMiddleware for quick local dev; tighten only if you also update `BACKEND_URL` usage.
+- **Failure handling**: UI marks backend disconnected if `/api/health` fails; predictive call is wrapped in try/except with user-facing error. Prefer short timeouts on new calls (current 4s) to avoid freezing refresh loop.
+- **Extending nodes**: UI node selector is hardcoded to 1-6; backend assumes 6 nodes and 50m spacing. If you change node count/spacing, update both frontend selector and backend `node_count`/`node_spacing_m`.
+- **Style/UX**: Charts assume `timestamp` convertible via `pd.to_datetime`; sort before plotting. Keep plot input index as datetime for Streamlit line charts.
+- **Testing/validation**: No formal tests; quickest smoke test is: start backend, load Streamlit, toggle node selector, verify metrics update and alert history logs only on status changes, then open Predictive tab and adjust windows (as Admin/Operator) to confirm risk_score responds.
+- **Common edits**: To tweak anomaly frequency, adjust `anomaly` probability in [backend.py](backend.py). To change thresholds, edit leak_score rules. To relocate backend, edit `BACKEND_URL` near the top of [app.py](app.py).
+- **Deployment note**: Project assumes localhost demo; if deploying, set fixed host/IP for backend and consider persisting HISTORY beyond process memory.

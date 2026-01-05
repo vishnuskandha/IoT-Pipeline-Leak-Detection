@@ -1,0 +1,22 @@
+#!/bin/bash
+# Start Backend in background
+uvicorn backend:app --host 0.0.0.0 --port 8000 &
+
+# Start Frontend in foreground (on the port Render assigns, usually $PORT)
+# Note: Streamlit on Render needs specific configuration, but for a single Web Service, 
+# we usually expose the Streamlit port.
+# If we want both accessible, it's tricky on one free service.
+# BETTER APPROACH FOR RENDER FREE TIER:
+# Deploy generic "Web Service" for the Backend (API).
+# Deploy "Static Site" or another "Web Service" for Streamlit? No, Streamlit needs python.
+
+# REVISED PLAN DO NOT USE THIS SCRIPT YET.
+# Render Free Tier allows multiple web services.
+# Best Stability: Deploy Backend as Web Service 1. Deploy Frontend as Web Service 2.
+# But for "Easy", let's try to run them together?
+# No, externally accessing port 8000 (API) and 8501 (UI) on one Render service is not possible (only 1 port exposed).
+
+# SOLUTION:
+# We will setup for TWO separate services on Render (both free).
+# Service 1 (Backend): Command `uvicorn backend:app --host 0.0.0.0 --port $PORT`
+# Service 2 (Frontend): Command `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`
