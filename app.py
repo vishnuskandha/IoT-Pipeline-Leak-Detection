@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
+import os
 from streamlit_autorefresh import st_autorefresh
 
 # ---------------- AUTH (UI + SESSION) ----------------
@@ -37,10 +38,19 @@ def login_screen():
 
 
 # ---------------- CONFIG ----------------
-# Try to get Backend URL from Secrets (Cloud), otherwise use Localhost
-if "BACKEND_URL" in st.secrets:
-    BACKEND_URL = st.secrets["BACKEND_URL"]
-else:
+# 1. Try Environment Variable (Render / Docker)
+BACKEND_URL = os.getenv("BACKEND_URL")
+
+# 2. Try Streamlit Secrets (Streamlit Cloud)
+if not BACKEND_URL:
+    try:
+        if "BACKEND_URL" in st.secrets:
+            BACKEND_URL = st.secrets["BACKEND_URL"]
+    except Exception:
+        pass # No secrets found
+
+# 3. Fallback to Localhost
+if not BACKEND_URL:
     BACKEND_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="Pipeline Leakage Dashboard", layout="wide")
