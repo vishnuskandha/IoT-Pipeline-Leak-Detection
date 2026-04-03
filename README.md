@@ -113,6 +113,12 @@ To run the full system on your machine:
 uvicorn backend:app --host 0.0.0.0 --port 8000
 ```
 
+Optional: if your Streamlit frontend is not running on localhost, set allowed CORS origins before starting backend:
+```bash
+# Example
+set ALLOWED_ORIGINS=http://127.0.0.1:8501,http://localhost:8501,https://your-frontend.example.com
+```
+
 **2. Start the Dashboard**
 Open a new terminal:
 ```bash

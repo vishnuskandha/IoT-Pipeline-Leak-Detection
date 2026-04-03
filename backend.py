@@ -1,15 +1,24 @@
-from fastapi import FastAPI
+import os
+import threading
+from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import random
 
 app = FastAPI(title="Pipeline Dummy Backend")
 
+NODE_COUNT = 3
+NODE_SPACING_M = 50
+HISTORY_LOCK = threading.Lock()
+
+cors_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:8501,http://localhost:8501")
+ALLOWED_ORIGINS = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+
 # Allow Streamlit (frontend) to call this backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS or ["http://127.0.0.1:8501"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -61,10 +70,8 @@ def simulate_sensor_reading():
         status = "NORMAL"
 
     # Dummy leak localization
-    node_count = 3
-    node_spacing_m = 50
-    estimated_node = random.randint(1, node_count)
-    estimated_distance_m = (estimated_node - 1) * node_spacing_m
+    estimated_node = random.randint(1, NODE_COUNT)
+    estimated_distance_m = (estimated_node - 1) * NODE_SPACING_M
 
     return {
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -77,14 +84,15 @@ def simulate_sensor_reading():
         "leak_score": leak_score,
         "estimated_node": estimated_node,
         "estimated_distance_m": estimated_distance_m,
-        "node_spacing_m": node_spacing_m,
+        "node_spacing_m": NODE_SPACING_M,
     }
 
 
 def push_history(point):
-    HISTORY.append(point)
-    if len(HISTORY) > MAX_POINTS:
-        HISTORY.pop(0)
+    with HISTORY_LOCK:
+        HISTORY.append(point)
+        if len(HISTORY) > MAX_POINTS:
+            HISTORY.pop(0)
 
 
 @app.get("/api/health")
@@ -97,11 +105,23 @@ def root():
     return {"message": "Backend running. Try /api/health or /api/latest/1"}
 
 
+def _validate_windows(short_window: int, long_window: int):
+    if short_window < 3 or long_window < 3:
+        raise HTTPException(status_code=422, detail="short_window and long_window must be >= 3")
+    if short_window > long_window:
+        raise HTTPException(status_code=422, detail="short_window cannot be greater than long_window")
+
+
+def _history_for_node(node_id: int):
+    with HISTORY_LOCK:
+        return [p for p in HISTORY if p.get("node_id") == node_id]
+
+
 @app.get("/api/latest/{node_id}")
-def latest_node(node_id: int):
+def latest_node(node_id: int = Path(..., ge=1, le=NODE_COUNT)):
     # 1. Try to find the latest real data for this node in history
     # Filter points for this node
-    node_points = [p for p in HISTORY if p.get("node_id") == node_id]
+    node_points = _history_for_node(node_id)
     
     if node_points:
         # Return the most recent point (last ONE added)
@@ -121,27 +141,30 @@ def latest_node(node_id: int):
         "leak_score": 0,
         "estimated_node": 0,
         "estimated_distance_m": 0,
-        "node_spacing_m": 50,
+        "node_spacing_m": NODE_SPACING_M,
     }
 
 
 @app.get("/api/history/{node_id}")
-def history_node(node_id: int):
-    node_points = [p for p in HISTORY if p.get("node_id") == node_id]
+def history_node(node_id: int = Path(..., ge=1, le=NODE_COUNT)):
+    node_points = _history_for_node(node_id)
     return {"points": node_points}
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class SensorData(BaseModel):
-    node_id: int
-    tds: float
-    turbidity: float
-    flow: float
+    node_id: int = Field(..., ge=1, le=NODE_COUNT)
+    tds: float = Field(..., ge=0)
+    turbidity: float = Field(..., ge=0)
+    flow: float = Field(..., ge=0)
     is_leak: bool
 
 @app.post("/api/sensor-data")
 def receive_sensor_data(data: SensorData):
+    if data.node_id < 1 or data.node_id > NODE_COUNT:
+        raise HTTPException(status_code=422, detail=f"node_id must be between 1 and {NODE_COUNT}")
+
     # Convert bool status to string for frontend compatibility
     status = "LEAK DETECTED" if data.is_leak else "NORMAL"
     
@@ -160,7 +183,7 @@ def receive_sensor_data(data: SensorData):
         "leak_score": 100 if data.is_leak else 0,
         "estimated_node": data.node_id if data.is_leak else 0,
         "estimated_distance_m": 0, # Could be calculated if we knew position
-        "node_spacing_m": 50,
+        "node_spacing_m": NODE_SPACING_M,
     }
     
     push_history(point)
@@ -335,16 +358,12 @@ def compute_predictive_risk(node_points, short_window=30, long_window=120):
     }
 
 
-    return {
-        "risk_score": int(round(risk)),
-        "risk_level": level,
-        "reasons": reasons,
-        "short_window": short_window,
-        "long_window": long_window
-    }
-
-
 @app.get("/api/predictive/{node_id}")
-def predictive_node(node_id: int, short_window: int = 30, long_window: int = 120):
-    node_points = [p for p in HISTORY if p.get("node_id") == node_id]
+def predictive_node(
+    node_id: int = Path(..., ge=1, le=NODE_COUNT),
+    short_window: int = Query(30),
+    long_window: int = Query(120),
+):
+    _validate_windows(short_window, long_window)
+    node_points = _history_for_node(node_id)
     return compute_predictive_risk(node_points, short_window=short_window, long_window=long_window)
