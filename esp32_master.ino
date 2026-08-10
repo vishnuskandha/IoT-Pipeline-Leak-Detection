@@ -6,10 +6,10 @@
 #include <Wire.h>
 
 // ------------------- USER CONFIG -------------------
-const char *ssid = "Vishnu";
-const char *password = "12345678";
+const char *ssid = "YOUR_WIFI_SSID";
+const char *password = "YOUR_WIFI_PASSWORD";
 const char *serverUrl =
-    "http://192.168.1.100:8000/api/sensor-data"; // REPLACE WITH YOUR PC IP
+    "http://YOUR_PC_IP:8000/api/sensor-data"; // REPLACE WITH YOUR PC IP
 
 // Modbus Pins (RS485)
 #define MAX485_DE 4

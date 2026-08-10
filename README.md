@@ -1,149 +1,160 @@
-# 🚰 IoT Water Pipeline Leak Detection System
+# IoT-Pipeline-Leak-Detection
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue?style=for-the-badge&logo=python)
-![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi)
-![ESP32](https://img.shields.io/badge/ESP32-Espressif-red?style=for-the-badge&logo=espressif)
-![Modbus](https://img.shields.io/badge/Protocol-Modbus%20RTU-orange?style=for-the-badge)
+[![CI](https://github.com/vishnuskandha/IoT-Pipeline-Leak-Detection/actions/workflows/ci.yml/badge.svg)](https://github.com/vishnuskandha/IoT-Pipeline-Leak-Detection/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A robust, real-time monitoring system designed to detect leaks and sinkhole risks in underground water pipelines. This project utilizes a **Master-Slave architecture** with **ESP32** microcontrollers communicating via **Modbus RTU (RS485)** to collect sensor data (Flow, Turbidity, TDS) and visualize it on a modern **Streamlit Dashboard**.
+Real-time leak detection for underground water pipelines. ESP32 Modbus RTU
+slave nodes read flow, turbidity, and TDS sensors from the field, a master
+ESP32 aggregates the readings over an RS485 bus and posts them to a FastAPI
+backend, and a Streamlit dashboard renders live metrics, leak localization,
+alert history, and rule-based predictive maintenance.
 
----
+## Features
 
-## 🌟 Features
+- Multi-node field architecture: 1 master + 3 slave nodes over Modbus RTU (RS485).
+- Master ESP32 with on-site OLED status display (SSD1306).
+- FastAPI ingestion API (`/api/sensor-data`) with CORS support for the dashboard.
+- Streamlit dashboard with role-based login (Admin / Operator / Viewer).
+- Live monitoring: pressure, flow, vibration, turbidity, TDS per sensor node.
+- Leak localization: estimated leak node and distance from the pipeline start.
+- Alert history: logs status changes with per-node filtering.
+- Predictive maintenance (Level 1): explainable drift/volatility risk scoring
+  with expected-issue-window heuristics and dominant-factor breakdown.
+- Self-contained demo backend that simulates sensor readings with injected
+  anomalies, so the full stack runs without hardware.
+- `mock_esp32_post.ino` lets you simulate an ESP32 node from the Arduino IDE.
 
-*   **Real-time Monitoring**: Live visualization of Flow Rate, Turbidity, and TDS levels.
-*   **Leak Detection**: Automated algorithms to detect anomalies indicative of leaks.
-*   **Multi-Node Architecture**: Scalable system with 1 Master and 3 Slave nodes.
-*   **Robust Communication**: Uses industrial-grade Modbus RTU (RS485) for long-distance data transmission.
-*   **Visual Alerts**: Dashboard highlights critical nodes with visual alarms.
-*   **Predictive Maintenance**: Historical data analysis to predict potential failures (Basic Implementation).
-*   **Local OLED Display**: Master node features an OLED screen for on-site diagnostics.
-*   **Cloud Ready**: Designed for deployment on platforms like Render or Streamlit Cloud.
+## Architecture
 
----
-
-## 🏗️ System Architecture
-
-The system consists of three main layers: **Sensing (Hardware)**, **Communication**, and **Application (Software)**.
-
-```mermaid
-graph TD
-    subgraph "Field Level (RS485 Bus)"
-        S1[Slave Node 1] <-->|Modbus RTU| M[Master Node]
-        S2[Slave Node 2] <-->|Modbus RTU| M
-        S3[Slave Node 3] <-->|Modbus RTU| M
-    end
-
-    subgraph "Master Node (ESP32)"
-        M -->|I2C| OLED[OLED Display]
-        M -->|HTTP POST| Cloud[Backend API]
-    end
-
-    subgraph "Cloud / Server"
-        Cloud -->|FastAPI| DB[(In-Memory DB)]
-        DB -->|JSON| Dashboard[Streamlit UI]
-    end
+```
++-----------------------------------------------------------+
+|                        Field Level                        |
+|                                                           |
+|   Slave Node 1  --\                                        |
+|   Slave Node 2  --- Modbus RTU over RS485 bus -->  Master |
+|   Slave Node 3  --/                          (ESP32)      |
+|                                                           |
+|   Each slave: flow sensor + turbidity + TDS               |
++-----------------------------------------------------------+
+                       | HTTP POST (JSON) over WiFi
+                       v
++-----------------------------------------------------------+
+|   Backend (FastAPI, backend.py)                           |
+|   - /api/health          health check                     |
+|   - /api/sensor-data     ingest ESP32 readings            |
+|   - /api/latest/{id}     latest reading per node          |
+|   - /api/history/{id}    history buffer per node          |
+|   - /api/predictive/{id} Level-1 risk scoring             |
++-----------------------------------------------------------+
+                       | JSON over HTTP
+                       v
++-----------------------------------------------------------+
+|   Dashboard (Streamlit, app.py)                           |
+|   - login / roles                                          |
+|   - live metrics + trends                                  |
+|   - leak localization                                      |
+|   - alert history                                          |
+|   - predictive maintenance tab                             |
++-----------------------------------------------------------+
 ```
 
----
+## Quickstart
 
-## 🛠️ Tech Stack
+Prerequisites: Python 3.9+.
 
-### Software
-*   **Backend**: Python (FastAPI, Uvicorn)
-*   **Frontend**: Python (Streamlit, Pandas)
-*   **Firmware**: C++ (Arduino Framework, Modbus-esp8266 Library)
-*   **IDEs**: VS Code, Arduino IDE
+### Backend and dashboard
 
-### Hardware
-*   **Controllers**: 4x ESP32 Development Boards (1 Master, 3 Slaves)
-*   **Communication**: 4x MAX485 TTL to RS485 Modules
-*   **Sensors**:
-    *   3x YF-S201 Flow Sensors
-    *   3x Turbidity Sensors (Analog)
-    *   3x TDS Sensors (Analog)
-*   **Display**: 1x 0.96" I2C OLED Display (SSD1306)
-*   **Misc**: Jumper Wires, Breadboards, 120Ω Termination Resistors
-
----
-
-## 🚀 Installation & Setup
-
-### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/leak-detection-system.git
-cd leak-detection-system
-```
+git clone https://github.com/vishnuskandha/IoT-Pipeline-Leak-Detection.git
+cd IoT-Pipeline-Leak-Detection
 
-### 2. Local Software Setup
-Create a virtual environment and install dependencies:
-```bash
-# Windows
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # Linux/macOS
 
-# Install requirements
 pip install -r requirements.txt
 ```
 
-### 3. Hardware Firmware
-**Common Library**: Install `Modbus-esp8266` by Alexander Emelianov in Arduino IDE.
+Start the backend:
 
-*   **Master Node**:
-    1.  Open `esp32_master.ino`.
-    2.  Set your WiFi credentials (`ssid`, `password`).
-    3.  Set `serverUrl` to your backend IP (e.g., `http://192.168.0.3:8000/api/sensor-data`).
-    4.  Flash to ESP32 #1.
-
-*   **Slave Nodes**:
-    1.  Open `esp32_slave.ino`.
-    2.  Change `#define SLAVE_ID` to `1`, `2`, or `3` for each board.
-    3.  Flash to ESP32 #2, #3, and #4 respectively.
-
----
-
-## 🏃 Usage
-
-### Running Locally
-To run the full system on your machine:
-
-**1. Start the Backend API**
 ```bash
 uvicorn backend:app --host 0.0.0.0 --port 8000
 ```
 
-Optional: if your Streamlit frontend is not running on localhost, set allowed CORS origins before starting backend:
-```bash
-# Example
-set ALLOWED_ORIGINS=http://127.0.0.1:8501,http://localhost:8501,https://your-frontend.example.com
-```
+Start the dashboard in a second terminal:
 
-**2. Start the Dashboard**
-Open a new terminal:
 ```bash
 streamlit run app.py
 ```
 
-### Cloud Deployment (Render)
-1.  **Backend**: Deploy as a Web Service on Render (`uvicorn backend:app --host 0.0.0.0 --port $PORT`).
-2.  **Frontend**: Deploy as a Web Service on Render (`streamlit run app.py --server.port $PORT`).
-3.  **Link**: Add `BACKEND_URL` environment variable to the Frontend service pointing to the Backend's URL.
+Open http://localhost:8501 and sign in with one of the demo accounts:
+`admin`/`admin123`, `operator`/`op123`, or `viewer`/`view123`.
 
----
+The dashboard defaults to `http://127.0.0.1:8000`. To point it elsewhere,
+set the `BACKEND_URL` environment variable or add it under Streamlit secrets
+(`.streamlit/secrets.toml`).
 
-## 📊 Dashboard Preview
+### Flash the ESP32 firmware
 
-*(Add screenshots of your dashboard here)*
+Install the Arduino libraries `ModbusMaster`, `ModbusRTU`, `Adafruit SSD1306`,
+`Adafruit GFX`, `HTTPClient`, and `WiFi` from the Library Manager.
 
-*   **Live Monitor**: View real-time gauge charts for each node.
-*   **Data History**: Analyze trends over time.
-*   **System Status**: Quick view of connectivity and leak status.
+1. Open `esp32_master.ino`. Set your WiFi `ssid`/`password` and set
+   `serverUrl` to your PC's IP (e.g. `http://192.168.0.3:8000/api/sensor-data`).
+   Flash to the master board.
+2. Open `esp32_slave.ino`. Set `#define SLAVE_ID` to `1`, `2`, or `3` for each
+   board. Flash to three slave boards.
+3. `esp32_slave_serial.ino` is a debug variant that also prints readings over
+   the serial monitor.
 
----
+See [ESP32_Modbus_Walkthrough.md](ESP32_Modbus_Walkthrough.md) for the full
+hardware wiring (RS485 daisy chain, MAX485 pin mapping, sensor wiring, and
+OLED hookup) and verification steps.
 
-## 🤝 Contributing
-Contributions are welcome! Please open an issue or submit a pull request for any improvements.
+### Simulate a node without hardware
 
-## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Flash `mock_esp32_post.ino` (after setting your WiFi and backend URL) to any
+ESP32, or simply exercise the API:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/sensor-data \
+  -H "Content-Type: application/json" \
+  -d "{\"node_id\":1,\"tds\":320,\"turbidity\":2.1,\"flow\":17.5,\"is_leak\":false}"
+```
+
+## Repository layout
+
+```
+app.py                   Streamlit dashboard (login, live metrics, predictive tab)
+backend.py               FastAPI backend (ingestion, history, risk scoring)
+esp32_master.ino         ESP32 master: polls slaves over RS485, posts to backend
+esp32_slave.ino          ESP32 slave: reads sensors, serves Modbus registers
+esp32_slave_serial.ino   Debug slave variant with serial prints
+mock_esp32_post.ino      ESP32 sketch that posts simulated readings
+ESP32_Modbus_Walkthrough.md  Hardware wiring and flashing guide
+requirements.txt         Python dependencies
+```
+
+## Configuration
+
+| Setting | Where | Notes |
+| --- | --- | --- |
+| `BACKEND_URL` | `app.py` / env / Streamlit secrets | Dashboard-to-backend URL |
+| `ALLOWED_ORIGINS` | `backend.py` / env | Comma-separated CORS origins |
+| `NODE_COUNT`, `NODE_SPACING_M` | `backend.py` | Pipeline geometry |
+| Sensor thresholds | `esp32_master.ino` | Leak detection thresholds |
+| `SLAVE_ID` | `esp32_slave.ino` | Unique per board (1, 2, 3) |
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development setup, code style, and validation steps.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the supported-versions policy and notes on
+the default demo credentials and memory-only storage.
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
