@@ -3,9 +3,9 @@
 
 
 // ------------------- USER CONFIG -------------------
-const char *ssid = "Vishnu";
-const char *password = "12345678";
-const char *serverUrl = "http://192.168.0.3:8000/api/sensor-data"; // Updated IP
+const char *ssid = "YOUR_WIFI_SSID";
+const char *password = "YOUR_WIFI_PASSWORD";
+const char *serverUrl = "http://YOUR_PC_IP:8000/api/sensor-data"; // REPLACE WITH YOUR PC IP
 
 void setup() {
   Serial.begin(115200);
