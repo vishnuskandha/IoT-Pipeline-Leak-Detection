@@ -30,7 +30,7 @@ alert history, and rule-based predictive maintenance.
 +-----------------------------------------------------------+
 |                        Field Level                        |
 |                                                           |
-|   Slave Node 1  --\                                        |
+|   Slave Node 1  --\\                                        |
 |   Slave Node 2  --- Modbus RTU over RS485 bus -->  Master |
 |   Slave Node 3  --/                          (ESP32)      |
 |                                                           |
@@ -75,6 +75,16 @@ source venv/bin/activate     # Linux/macOS
 pip install -r requirements.txt
 ```
 
+For a local demo, explicitly enable development credentials:
+
+```bash
+# Windows PowerShell
+$env:APP_ENV="development"
+
+# Linux/macOS
+export APP_ENV=development
+```
+
 Start the backend:
 
 ```bash
@@ -87,8 +97,14 @@ Start the dashboard in a second terminal:
 streamlit run app.py
 ```
 
-Open http://localhost:8501 and sign in with one of the demo accounts:
+Open http://localhost:8501 and sign in with the development-only demo accounts:
 `admin`/`admin123`, `operator`/`op123`, or `viewer`/`view123`.
+
+**Production:** do not set `APP_ENV=development`. Configure one or more
+`ADMIN_PASSWORD`, `OPERATOR_PASSWORD`, and `VIEWER_PASSWORD` environment
+variables with strong, unique secrets. Any role without a configured password
+is unavailable. This prevents the built-in demo passwords from being enabled
+in a deployed environment.
 
 The dashboard defaults to `http://127.0.0.1:8000`. To point it elsewhere,
 set the `BACKEND_URL` environment variable or add it under Streamlit secrets
@@ -126,6 +142,7 @@ curl -X POST http://127.0.0.1:8000/api/sensor-data \
 
 ```
 app.py                   Streamlit dashboard (login, live metrics, predictive tab)
+auth_config.py           Environment-aware dashboard credential loading
 backend.py               FastAPI backend (ingestion, history, risk scoring)
 esp32_master.ino         ESP32 master: polls slaves over RS485, posts to backend
 esp32_slave.ino          ESP32 slave: reads sensors, serves Modbus registers
@@ -133,12 +150,17 @@ esp32_slave_serial.ino   Debug slave variant with serial prints
 mock_esp32_post.ino      ESP32 sketch that posts simulated readings
 ESP32_Modbus_Walkthrough.md  Hardware wiring and flashing guide
 requirements.txt         Python dependencies
+test_auth_config.py      Credential configuration regression tests
 ```
 
 ## Configuration
 
 | Setting | Where | Notes |
 | --- | --- | --- |
+| `APP_ENV` | `auth_config.py` / env | Use `development` only for local demo credentials; keep production unset or set to `production` |
+| `ADMIN_PASSWORD` | environment | Production Admin password; no default |
+| `OPERATOR_PASSWORD` | environment | Production Operator password; no default |
+| `VIEWER_PASSWORD` | environment | Production Viewer password; no default |
 | `BACKEND_URL` | `app.py` / env / Streamlit secrets | Dashboard-to-backend URL |
 | `ALLOWED_ORIGINS` | `backend.py` / env | Comma-separated CORS origins |
 | `NODE_COUNT`, `NODE_SPACING_M` | `backend.py` | Pipeline geometry |
@@ -153,7 +175,7 @@ development setup, code style, and validation steps.
 ## Security
 
 See [SECURITY.md](SECURITY.md) for the supported-versions policy and notes on
-the default demo credentials and memory-only storage.
+demo credentials and memory-only storage.
 
 ## License
 
