@@ -3,13 +3,10 @@ import requests
 import pandas as pd
 import os
 from streamlit_autorefresh import st_autorefresh
+from auth_config import load_users
 
 # ---------------- AUTH (UI + SESSION) ----------------
-USERS = {
-    "admin": {"password": "admin123", "role": "Admin"},
-    "operator": {"password": "op123", "role": "Operator"},
-    "viewer": {"password": "view123", "role": "Viewer"},
-}
+USERS = load_users()
 
 if "auth" not in st.session_state:
     st.session_state.auth = {"is_logged_in": False, "username": None, "role": None}
@@ -34,7 +31,6 @@ def login_screen():
             st.rerun()
         else:
             st.error("Invalid credentials.")
-
 
 
 # ---------------- CONFIG ----------------
