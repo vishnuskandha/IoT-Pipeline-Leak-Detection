@@ -1,4 +1,8 @@
+<div align="center">
+
 # IoT-Pipeline-Leak-Detection
+
+</div>
 
 
 <!-- README polish: repository metadata badges -->
